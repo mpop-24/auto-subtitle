@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     version="1.0",
-    name="auto_subtitle",
+    name="subtitle",
     packages=find_packages(),
-    py_modules=["auto_subtitle"],
+    py_modules=["subtitle"],
     author="Markell Popov",
     install_requires=[
         'openai-whisper',

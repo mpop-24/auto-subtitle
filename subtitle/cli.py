@@ -88,8 +88,20 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         warnings.filterwarnings("ignore")
         result = transcribe(audio_path)
         warnings.filterwarnings("default")
+
+        # Extract word-level timestamps
+        word_segments = []
+        for segment in result["segments"]:
+            for word in segment["words"]:
+                word_segments.append({
+                    "start": word["start"],
+                    "end": word["end"],
+                    "text": word["text"]
+                })
+
         with open(srt_path, "w", encoding="utf-8") as srt:
-            write_srt(result["segments"], file=srt, word_level=True)
+            write_srt(word_segments, file=srt)
+        
         subtitles_path[path] = srt_path
     return subtitles_path
 

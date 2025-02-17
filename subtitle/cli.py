@@ -1,10 +1,11 @@
-import os
+ import os
 import ffmpeg
 import whisper_timestamped as whisper
 import argparse
 import warnings
 import tempfile
 from .utils import filename, str2bool, write_srt
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -40,69 +41,76 @@ def main():
         warnings.warn(
             f"{model_name} is an English-only model, forcing English detection.")
         args["language"] = "en"
+    # if translate task used and language argument is set, then use it
     elif language != "auto":
         args["language"] = language
         
     model = whisper.load_model(model_name)
     audios = get_audio(args.pop("video"))
     subtitles = get_subtitles(
-        audios, output_srt or srt_only, output_dir, lambda audio_path: model.transcribe(audio_path, word_timestamps=True, **args)
-    )
+    audios, output_srt or srt_only, output_dir, lambda audio_path: model.transcribe(audio_path, word_timestamps=True, **args)
+)
+
 
     if srt_only:
         return
 
     for path, srt_path in subtitles.items():
         out_path = os.path.join(output_dir, f"{filename(path)}.mp4")
+
         print(f"Adding subtitles to {filename(path)}...")
+
         video = ffmpeg.input(path)
         audio = video.audio
+        
         ffmpeg.concat(
-            video.filter('subtitles', srt_path, force_style="FontSize=12"), audio, v=1, a=1
-        ).output(out_path).run(quiet=True, overwrite_output=True)
+                video.filter('subtitles', srt_path, force_style="FontSize=12"), audio, v=1, a=1
+            ).output(out_path).run(quiet=True, overwrite_output=True)
+            
         print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
+
+        
 
 
 def get_audio(paths):
     temp_dir = tempfile.gettempdir()
+
     audio_paths = {}
+
     for path in paths:
         print(f"Extracting audio from {filename(path)}...")
         output_path = os.path.join(temp_dir, f"{filename(path)}.wav")
+
         ffmpeg.input(path).output(
             output_path,
             acodec="pcm_s16le", ac=1, ar="16k"
         ).run(quiet=True, overwrite_output=True)
+
         audio_paths[path] = output_path
+
     return audio_paths
 
 
 def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
     subtitles_path = {}
+
     for path, audio_path in audio_paths.items():
         srt_path = output_dir if output_srt else tempfile.gettempdir()
         srt_path = os.path.join(srt_path, f"{filename(path)}.srt")
+        
         print(
             f"Generating subtitles for {filename(path)}... This might take a while."
         )
+
         warnings.filterwarnings("ignore")
         result = transcribe(audio_path)
         warnings.filterwarnings("default")
 
-        # Extract word-level timestamps
-        word_segments = []
-        for segment in result["segments"]:
-            for word in segment["words"]:
-                word_segments.append({
-                    "start": word["start"],
-                    "end": word["end"],
-                    "text": word["text"]
-                })
-
         with open(srt_path, "w", encoding="utf-8") as srt:
-            write_srt(word_segments, file=srt)
-        
+            write_srt(result["segments"], file=srt)
+
         subtitles_path[path] = srt_path
+
     return subtitles_path
 
 
